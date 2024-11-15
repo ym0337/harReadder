@@ -1,7 +1,8 @@
 const fs = require("fs");
 const path = require("path");
 
-const dictPath = path.join(__dirname,"dictionnary");
+const dictPath = path.join(__dirname, "dictionnary");
+const responsePath = path.join(__dirname, "response");
 
 const dicConfig = {
   code: 200,
@@ -12,41 +13,66 @@ const dicConfig = {
 // 读取 HAR 文件
 fs.readFile("./har/www.bilibili.com.har", "utf8", (err, data) => {
   if (err) {
-    console.error("读取文件失败:", err);
-    return;
+    return console.error("读取文件失败:", err);
   }
 
   try {
     // 解析 HAR 数据
     const harData = JSON.parse(data);
+    processHarEntries(harData.log.entries);
 
-    // 输出 HAR 数据
-    // console.log(harData);
-
-    // 你可以在这里处理 HAR 文件中的内容
-    // 比如输出某些请求的信息
-    let count = 0;
-    harData.log.entries.forEach((entry) => {
-      // console.log("Request URL:", entry.request.url);
-      // console.log("Request URL:", entry.request.url.split("//")[1]);
-      // console.log("Response:", entry.response.content);
-      const apiName =  `接口_${count}.json`;
-      dicConfig.data.push({
-        url: entry.request.url.split("//")[1],
-        apiName: apiName,
-      });
-      // 创建文件并写入内容
-      fs.writeFileSync(`${__dirname}/response/${apiName}`, entry.response.content.text, "utf8");
-      count++;
-    });
-    fs.writeFile(`${dictPath}/接口关系.json`, JSON.stringify(dicConfig), "utf8", (err) => {
-      if (err) {
-        console.error(`${dictPath}/接口.json 错误`, err);
-      } else {
-        console.log(`${dictPath}/接口.json 创建成功`);
-      }
-    });
+    // 写入接口关系到文件
+    writeDicConfig();
   } catch (parseError) {
     console.error("解析 JSON 失败:", parseError);
   }
 });
+
+function processHarEntries(entries) {
+  let count = 0;
+  entries.forEach((entry) => {
+    const url = entry.request.url.split("//")[1];
+    const ext = isValidJson(entry.response.content.text) ? ".json" : '.txt';
+    const apiName = `接口_${count}${ext}`;
+
+    dicConfig.data.push({
+      method: entry.request.method,
+      path: url.split("?")[0],
+      fullpath: url,
+      apiName: apiName,
+    });
+
+    // 创建文件并写入内容
+    writeResponseFile(apiName, entry.response.content.text);
+    count++;
+  });
+}
+
+function writeResponseFile(apiName, content) {
+  try {
+    fs.writeFileSync(`${responsePath}/${apiName}`, content, "utf8");
+  } catch (err) {
+    console.error(`写入 ${apiName} 文件失败:`, err);
+  }
+}
+
+function writeDicConfig() {
+  try {
+    fs.writeFileSync(`${dictPath}/接口关系.json`, JSON.stringify(dicConfig), "utf8");
+    console.log(`${dictPath}/接口关系.json 创建成功`);
+  } catch (err) {
+    console.error(`${dictPath}/接口关系.json 错误`, err);
+  }
+}
+
+function isValidJson(data) {
+  if (typeof data === "string") {
+    try {
+      JSON.parse(data);
+      return true; // 字符串可以成功解析为 JSON
+    } catch {
+      return false; // 字符串不能解析为 JSON
+    }
+  }
+  return false; // 不是字符串类型
+}
