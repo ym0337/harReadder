@@ -11,6 +11,10 @@ app.use(express.json());
 // 读取配置文件
 const configPath = path.join(__dirname, "dictionnary", "接口关系.json");
 const apiPath = path.join(__dirname, "response");
+
+// 创建response目录
+!fs.existsSync(apiPath) && fs.mkdirSync(apiPath);
+
 let config;
 
 try {
