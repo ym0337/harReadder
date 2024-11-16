@@ -49,14 +49,13 @@ const readFileAndRespond = (filePath, res) => {
 config.data.forEach((apiconfig) => {
   const { method, path, apiName } = apiconfig;
   const lowerMethod = method.toLowerCase();
-  const apiUrl = `/${path}`;
 
   if (lowerMethod === "get") {
-    app.get(apiUrl, (req, res) => {
+    app.get(path, (req, res) => {
       readFileAndRespond(`${apiPath}/${apiName}`, res);
     });
   } else if (lowerMethod === "post") {
-    app.post(apiUrl, (req, res) => {
+    app.post(path, (req, res) => {
       readFileAndRespond(`${apiPath}/${apiName}`, res);
     });
   }

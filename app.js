@@ -1,5 +1,6 @@
 const fs = require("fs");
 const path = require("path");
+const { URL } = require('url');
 
 const dictPath = path.join(__dirname, "dictionnary");
 const responsePath = path.join(__dirname, "response");
@@ -11,7 +12,7 @@ const dicConfig = {
 };
 
 // 读取 HAR 文件
-fs.readFile("./har/www.bilibili.com.har", "utf8", (err, data) => {
+fs.readFile("./har/new-tab-page.har", "utf8", (err, data) => {
   if (err) {
     return console.error("读取文件失败:", err);
   }
@@ -31,14 +32,16 @@ fs.readFile("./har/www.bilibili.com.har", "utf8", (err, data) => {
 function processHarEntries(entries) {
   let count = 0;
   entries.forEach((entry) => {
-    const url = entry.request.url.split("//")[1];
+    // console.log(entry.request.url);
+    const url = new URL(entry.request.url);
+    // console.log(url.protocol);
     const ext = isValidJson(entry.response.content.text) ? ".json" : '.txt';
     const apiName = `接口_${count}${ext}`;
 
     dicConfig.data.push({
       method: entry.request.method,
-      path: url.split("?")[0],
-      fullpath: url,
+      path: url.pathname,
+      fullpath: url.href,
       apiName: apiName,
     });
 
