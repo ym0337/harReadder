@@ -2,21 +2,30 @@ const fs = require("fs");
 const path = require("path");
 const { URL } = require('url');
 
-const dictPath = path.join(__dirname, "dictionnary");
-const responsePath = path.join(__dirname, "response");
+const { DICTIONNARY_PATH, RESPONSE_PATH } = require("./config/const.js");
+const { isValidJson } = require("./utils/utils.js");
+
+!fs.existsSync(DICTIONNARY_PATH) && fs.mkdirSync(DICTIONNARY_PATH);
+!fs.existsSync(RESPONSE_PATH) && fs.mkdirSync(RESPONSE_PATH);
 
 const dicConfig = {
   code: 200,
   message: "对照关系",
   data: [],
 };
-
+let harFilePath = '';
+// console.log('子进程启动成功', process.argv[2].replace('--path=', ''));
+try {
+  harFilePath = process.argv[2].replace('--path=', '')
+} catch (error) {
+  // 关闭进程0: 表示程序成功退出。 非 0 值（如 1、2 等）: 表示程序以错误状态退出。
+  process.exit(1);
+}
 // 读取 HAR 文件
-fs.readFile("./har/new-tab-page.har", "utf8", (err, data) => {
+fs.readFile(harFilePath, "utf8", (err, data) => {
   if (err) {
     return console.error("读取文件失败:", err);
   }
-
   try {
     // 解析 HAR 数据
     const harData = JSON.parse(data);
@@ -39,6 +48,7 @@ function processHarEntries(entries) {
     const apiName = `接口_${count}${ext}`;
 
     dicConfig.data.push({
+      id: count + 1,
       method: entry.request.method,
       path: url.pathname,
       fullpath: url.href,
@@ -53,7 +63,7 @@ function processHarEntries(entries) {
 
 function writeResponseFile(apiName, content) {
   try {
-    fs.writeFileSync(`${responsePath}/${apiName}`, content, "utf8");
+    fs.writeFileSync(`${RESPONSE_PATH}/${apiName}`, content, "utf8");
   } catch (err) {
     console.error(`写入 ${apiName} 文件失败:`, err);
   }
@@ -61,21 +71,14 @@ function writeResponseFile(apiName, content) {
 
 function writeDicConfig() {
   try {
-    fs.writeFileSync(`${dictPath}/接口关系.json`, JSON.stringify(dicConfig), "utf8");
-    console.log(`${dictPath}/接口关系.json 创建成功`);
+    fs.writeFileSync(`${DICTIONNARY_PATH}/接口关系.json`, JSON.stringify(dicConfig), "utf8");
+    console.log(JSON.stringify({
+      status: 200,
+      message: "接口关系文件已生成",
+      path: `${DICTIONNARY_PATH}/接口关系.json`,
+    }));
   } catch (err) {
-    console.error(`${dictPath}/接口关系.json 错误`, err);
+    console.error(`${DICTIONNARY_PATH}/接口关系.json 错误`, err);
   }
 }
 
-function isValidJson(data) {
-  if (typeof data === "string") {
-    try {
-      JSON.parse(data);
-      return true; // 字符串可以成功解析为 JSON
-    } catch {
-      return false; // 字符串不能解析为 JSON
-    }
-  }
-  return false; // 不是字符串类型
-}

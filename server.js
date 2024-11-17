@@ -1,24 +1,40 @@
 const express = require("express");
 const fs = require("fs");
 const path = require("path");
+const cors = require("cors"); // 引入 cors
+
+const { DICTIONNARY_PATH, RESPONSE_PATH } = require("./config/const.js");
+
+const harRoutes = require("./routes/har.js");
+
 
 const app = express();
-const PORT = 3000;
+const PORT = 3011;
 
 // 解析 JSON 请求体
 app.use(express.json());
+// 使用 CORS 中间件
+app.use(cors());
+// 路由
+app.use('/har', harRoutes);
 
-// 读取配置文件
-const configPath = path.join(__dirname, "dictionnary", "接口关系.json");
-const apiPath = path.join(__dirname, "response");
+// 全局捕获异常
+app.use((err, req, res, next) => {
+  console.error(err);
+  res.status(500).send('服务器错误');
+});
 
-// 创建response目录
-!fs.existsSync(apiPath) && fs.mkdirSync(apiPath);
+// 指定静态文件目录为 build
+app.use(express.static(path.join(__dirname, 'build_web')));
+
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'build_web', 'index.html'));
+});
 
 let config;
 
 try {
-  config = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+  config = JSON.parse(fs.readFileSync(path.join(DICTIONNARY_PATH, "接口关系.json"), "utf-8"));
 } catch (error) {
   console.error("读取配置文件失败:", error);
   process.exit(1); // 读取配置失败，退出程序
@@ -52,11 +68,11 @@ config.data.forEach((apiconfig) => {
 
   if (lowerMethod === "get") {
     app.get(path, (req, res) => {
-      readFileAndRespond(`${apiPath}/${apiName}`, res);
+      readFileAndRespond(`${RESPONSE_PATH}/${apiName}`, res);
     });
   } else if (lowerMethod === "post") {
     app.post(path, (req, res) => {
-      readFileAndRespond(`${apiPath}/${apiName}`, res);
+      readFileAndRespond(`${RESPONSE_PATH}/${apiName}`, res);
     });
   }
 });

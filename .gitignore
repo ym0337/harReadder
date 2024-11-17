@@ -2,3 +2,5 @@ node_modules/
 response/
 dictionnary/
 har/
+build/
+build_web/
