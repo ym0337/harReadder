@@ -48,6 +48,19 @@ router.post("/login", (req, res) => {
   });
 });
 
+router.get("/config", (req, res) => {
+  fs.readFile(
+    path.join(DICTIONNARY_PATH, "接口_config.json"),
+    "utf-8",
+    (err, data) => {
+      if (err) {
+        return res.status(500).json({ error: "读取文件夹失败" });
+      }
+      res.status(200).json(JSON.parse(data));
+    }
+  );
+});
+
 // 创建上传接口
 router.post("/upload", upload.single("file"), (req, res) => {
   if (!req.file) {
@@ -55,7 +68,7 @@ router.post("/upload", upload.single("file"), (req, res) => {
   }
 
   res
-    .status(201)
+    .status(200)
     .json({ message: "文件上传成功", filename: req.file.originalname });
 });
 
@@ -128,7 +141,7 @@ router.get("/files", (req, res) => {
             id: index + 1, // 序号
             key: file, // 唯一码
             filename: file_split[1], // 文件名
-            createdAt: createdAt,
+            createdAt: createdAt, // new Date().toLocaleString()
             path: filePath, // 文件路径
           });
         });
@@ -173,25 +186,19 @@ router.post("/run-script", (req, res) => {
     }
     console.log(`标准输出: ${stdout}`);
     const output = JSON.parse(stdout);
-    if ((output.status = 200)) {
+    if ((output.api_status = 200)) {
       const ext = path.extname(output.path);
       fs.readFile(output.path, "utf-8", (err, data) => {
         if (err) {
           return res.status(500).json({ error: "读取文件失败" });
         }
         try {
-          if (ext === ".json") {
-            res.json(JSON.parse(data)); // 返回 JSON 文件的内容
-          } else if (ext === ".txt") {
-            res.type("text/plain").send(data); // 返回纯文本文件的内容
-          } else {
-            res.status(400).json({ error: "不支持的文件类型" });
-          }
+          res.status(200).json(JSON.parse(data)); // 返回 JSON 文件的内容
         } catch (error) {
           res.status(500).json({ error: "解析 JSON 失败" });
         }
       });
-    }else{
+    } else {
       res.status(500).json({ error: "执行失败" });
     }
   });

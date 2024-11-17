@@ -1,6 +1,6 @@
 const fs = require("fs");
 const path = require("path");
-const { URL } = require('url');
+const { URL } = require("url");
 
 const { DICTIONNARY_PATH, RESPONSE_PATH } = require("./config/const.js");
 const { isValidJson } = require("./utils/utils.js");
@@ -8,19 +8,24 @@ const { isValidJson } = require("./utils/utils.js");
 !fs.existsSync(DICTIONNARY_PATH) && fs.mkdirSync(DICTIONNARY_PATH);
 !fs.existsSync(RESPONSE_PATH) && fs.mkdirSync(RESPONSE_PATH);
 
-const dicConfig = {
-  code: 200,
-  message: "对照关系",
-  data: [],
-};
-let harFilePath = '';
+let harFilePath = "";
 // console.log('子进程启动成功', process.argv[2].replace('--path=', ''));
 try {
-  harFilePath = process.argv[2].replace('--path=', '')
+  harFilePath = process.argv[2].replace("--path=", "");
 } catch (error) {
   // 关闭进程0: 表示程序成功退出。 非 0 值（如 1、2 等）: 表示程序以错误状态退出。
   process.exit(1);
 }
+
+const dicConfig = {
+  fileName: harFilePath.split('-_-')[1],
+  code: 200,
+  message: "对照关系",
+  data: [],
+};
+
+write_config()
+
 // 读取 HAR 文件
 fs.readFile(harFilePath, "utf8", (err, data) => {
   if (err) {
@@ -44,7 +49,7 @@ function processHarEntries(entries) {
     // console.log(entry.request.url);
     const url = new URL(entry.request.url);
     // console.log(url.protocol);
-    const ext = isValidJson(entry.response.content.text) ? ".json" : '.txt';
+    const ext = isValidJson(entry.response.content.text) ? ".json" : ".txt";
     const apiName = `接口_${count}${ext}`;
 
     dicConfig.data.push({
@@ -71,14 +76,35 @@ function writeResponseFile(apiName, content) {
 
 function writeDicConfig() {
   try {
-    fs.writeFileSync(`${DICTIONNARY_PATH}/接口关系.json`, JSON.stringify(dicConfig), "utf8");
-    console.log(JSON.stringify({
-      status: 200,
-      message: "接口关系文件已生成",
-      path: `${DICTIONNARY_PATH}/接口关系.json`,
-    }));
+    fs.writeFileSync(
+      `${DICTIONNARY_PATH}/接口关系.json`,
+      JSON.stringify(dicConfig),
+      "utf8"
+    );
+    // exec 必须有回调函数，否则不会执行
+    console.log(
+      JSON.stringify({
+        api_status: 200,
+        message: "接口关系文件已生成",
+        path: `${DICTIONNARY_PATH}/接口关系.json`,
+      })
+    );
   } catch (err) {
     console.error(`${DICTIONNARY_PATH}/接口关系.json 错误`, err);
   }
 }
 
+function write_config() {
+  try {
+    fs.writeFileSync(
+      `${DICTIONNARY_PATH}/接口_config.json`,
+      JSON.stringify({
+        fileName: harFilePath.split('-_-')[1],
+        date: new Date().toLocaleString(),
+      }),
+      "utf8"
+    );
+  } catch (err) {
+    console.error(`${DICTIONNARY_PATH}/接口_config.json 错误`, err);
+  }
+}
