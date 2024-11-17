@@ -1,12 +1,12 @@
 const express = require("express");
 const fs = require("fs");
 const path = require("path");
+const { exec } = require("child_process");
 const cors = require("cors"); // 引入 cors
 
 const { DICTIONNARY_PATH, RESPONSE_PATH } = require("./config/const.js");
 
 const harRoutes = require("./routes/har.js");
-
 
 const app = express();
 const PORT = 3011;
@@ -16,25 +16,27 @@ app.use(express.json());
 // 使用 CORS 中间件
 app.use(cors());
 // 路由
-app.use('/har', harRoutes);
+app.use("/har", harRoutes);
 
 // 全局捕获异常
 app.use((err, req, res, next) => {
   console.error(err);
-  res.status(500).send('服务器错误');
+  res.status(500).send("服务器错误");
 });
 
 // 指定静态文件目录为 build
-app.use(express.static(path.join(__dirname, 'build_web')));
+app.use(express.static(path.join(__dirname, "build_web")));
 
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'build_web', 'index.html'));
+app.get("*", (req, res) => {
+  res.sendFile(path.join(__dirname, "build_web", "index.html"));
 });
 
 let config;
 
 try {
-  config = JSON.parse(fs.readFileSync(path.join(DICTIONNARY_PATH, "接口关系.json"), "utf-8"));
+  config = JSON.parse(
+    fs.readFileSync(path.join(DICTIONNARY_PATH, "接口关系.json"), "utf-8")
+  );
 } catch (error) {
   console.error("读取配置文件失败:", error);
   process.exit(1); // 读取配置失败，退出程序
@@ -79,5 +81,8 @@ config.data.forEach((apiconfig) => {
 
 // 启动服务器
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`服务器已启动，访问 http://localhost:${PORT}`);
+  // 使用 child_process 打开浏览器
+  const start = process.platform === "win32" ? "start" : "open";
+  exec(`${start} http://localhost:${PORT}`);
 });
