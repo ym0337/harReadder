@@ -27,10 +27,6 @@ app.use((err, req, res, next) => {
 // 指定静态文件目录为 build
 app.use(express.static(path.join(__dirname, "build_web")));
 
-app.get("*", (req, res) => {
-  res.sendFile(path.join(__dirname, "build_web", "index.html"));
-});
-
 let config;
 
 try {
@@ -77,6 +73,11 @@ config.data.forEach((apiconfig) => {
       readFileAndRespond(`${RESPONSE_PATH}/${apiName}`, res);
     });
   }
+});
+
+// 必须放到最后一个路由，否则会影响到正常的路由
+app.get("*", (req, res) => {
+  res.sendFile(path.join(__dirname, "build_web", "index.html"));
 });
 
 // 启动服务器

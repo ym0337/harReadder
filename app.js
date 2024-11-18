@@ -18,13 +18,18 @@ try {
 }
 
 const dicConfig = {
-  fileName: harFilePath.split('-_-')[1],
+  fileName: harFilePath.split("-_-")[1],
   code: 200,
   message: "对照关系",
   data: [],
 };
 
-write_config()
+write_config();
+
+process.on("uncaughtException", function (err) {
+  console.error("发生未捕获的异常:", err);
+  process.exit(1); // 退出程序
+});
 
 // 读取 HAR 文件
 fs.readFile(harFilePath, "utf8", (err, data) => {
@@ -49,19 +54,30 @@ function processHarEntries(entries) {
     // console.log(entry.request.url);
     const url = new URL(entry.request.url);
     // console.log(url.protocol);
-    const ext = isValidJson(entry.response.content.text) ? ".json" : ".txt";
-    const apiName = `接口_${count}${ext}`;
-
-    dicConfig.data.push({
-      id: count + 1,
-      method: entry.request.method,
-      path: url.pathname,
-      fullpath: url.href,
-      apiName: apiName,
-    });
-
-    // 创建文件并写入内容
-    writeResponseFile(apiName, entry.response.content.text);
+    if (Object.prototype.hasOwnProperty.call(entry.response.content, "text")) {
+      const ext = isValidJson(entry.response.content.text) ? ".json" : ".txt";
+      const apiName = `接口_${count}${ext}`;
+      dicConfig.data.push({
+        id: count + 1,
+        method: entry.request.method,
+        path: url.pathname,
+        fullpath: url.href,
+        apiName: apiName,
+      });
+      // 创建文件并写入内容
+      writeResponseFile(apiName, entry.response.content.text);
+    } else {
+      const apiName = `接口_${count}.txt`;
+      dicConfig.data.push({
+        id: count + 1,
+        method: entry.request.method,
+        path: url.pathname,
+        fullpath: url.href,
+        apiName: apiName,
+      });
+      // 创建文件并写入内容
+      writeResponseFile(apiName, "");
+    }
     count++;
   });
 }
@@ -99,7 +115,7 @@ function write_config() {
     fs.writeFileSync(
       `${DICTIONNARY_PATH}/接口_config.json`,
       JSON.stringify({
-        fileName: harFilePath.split('-_-')[1],
+        fileName: harFilePath.split("-_-")[1],
         date: new Date().toLocaleString(),
       }),
       "utf8"
