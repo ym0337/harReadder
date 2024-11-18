@@ -66,10 +66,15 @@ router.post("/upload", upload.single("file"), (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: "没有选择文件" });
   }
-
-  res
-    .status(200)
-    .json({ message: "文件上传成功", filename: req.file.originalname });
+  if (req.file) {
+    // 你可以在这里返回文件名和其他信息
+    return res.status(200).json({
+      message: "文件上传成功",
+      filename: req.file.filename.split("-_-")[1] || req.file.filename, // 返回文件名
+      path: req.file.path, // 返回文件路径
+    });
+  }
+  return res.status(400).json({ message: "文件上传失败" });
 });
 
 // 返回接口json数据
@@ -166,8 +171,7 @@ router.delete("/files/:filename", (req, res) => {
       }
       return res.status(500).json({ error: "删除文件失败" });
     }
-
-    res.status(200).json({ message: "文件删除成功", filename: filename });
+    res.status(200).json({ message: "文件删除成功", filename: filename.split("-_-")[1] });
   });
 });
 

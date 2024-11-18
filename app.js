@@ -21,6 +21,7 @@ const dicConfig = {
   fileName: harFilePath.split("-_-")[1],
   code: 200,
   message: "对照关系",
+  methodOptions: [],
   data: [],
 };
 
@@ -63,7 +64,9 @@ function processHarEntries(entries) {
         path: url.pathname,
         fullpath: url.href,
         apiName: apiName,
+        dictPath: `${RESPONSE_PATH}/${apiName}`
       });
+      dicConfig.methodOptions.push(entry.request.method);
       // 创建文件并写入内容
       writeResponseFile(apiName, entry.response.content.text);
     } else {
@@ -74,7 +77,9 @@ function processHarEntries(entries) {
         path: url.pathname,
         fullpath: url.href,
         apiName: apiName,
+        dictPath: `${RESPONSE_PATH}/${apiName}`
       });
+      dicConfig.methodOptions.push(entry.request.method);
       // 创建文件并写入内容
       writeResponseFile(apiName, "");
     }
@@ -92,6 +97,7 @@ function writeResponseFile(apiName, content) {
 
 function writeDicConfig() {
   try {
+    dicConfig.methodOptions = [...new Set(dicConfig.methodOptions)];
     fs.writeFileSync(
       `${DICTIONNARY_PATH}/接口关系.json`,
       JSON.stringify(dicConfig),
