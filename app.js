@@ -64,7 +64,7 @@ function processHarEntries(entries) {
         path: url.pathname,
         fullpath: url.href,
         apiName: apiName,
-        dictPath: `${RESPONSE_PATH}/${apiName}`
+        dictPath: `${RESPONSE_PATH}/${apiName}`,
       });
       dicConfig.methodOptions.push(entry.request.method);
       // 创建文件并写入内容
@@ -77,7 +77,7 @@ function processHarEntries(entries) {
         path: url.pathname,
         fullpath: url.href,
         apiName: apiName,
-        dictPath: `${RESPONSE_PATH}/${apiName}`
+        dictPath: `${RESPONSE_PATH}/${apiName}`,
       });
       dicConfig.methodOptions.push(entry.request.method);
       // 创建文件并写入内容

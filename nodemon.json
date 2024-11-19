@@ -1,5 +1,8 @@
 {
   "ignore": [
-    "response/**"
-  ]
+    "response/**",
+    "node_modules/**"
+  ],
+  "watch": ["dictionnary/接口关系.json","*.js"],
+  "ext": "js,json"
 }

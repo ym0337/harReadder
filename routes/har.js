@@ -180,18 +180,17 @@ router.post("/run-script", (req, res) => {
   const { filePath } = req.body;
   exec(`node app.js --path=${filePath}`, (error, stdout, stderr) => {
     if (error) {
-      console.error(`执行错误: ${error}`);
+      console.error(`node app.js执行错误: ${error}`);
       return res.status(500).json({ error: `执行错误: ${error.message}` });
     }
 
     if (stderr) {
-      console.error(`标准错误: ${stderr}`);
-      return res.status(500).json({ error: `标准错误: ${stderr}` });
+      console.error(`node app.js标准错误: ${stderr}`);
+      return res.status(500).json({ error: `node app.js标准错误: ${stderr}` });
     }
-    console.log(`标准输出: ${stdout}`);
+    console.log(`node app.js执行完成: ${stdout}`);
     const output = JSON.parse(stdout);
     if ((output.api_status = 200)) {
-      const ext = path.extname(output.path);
       fs.readFile(output.path, "utf-8", (err, data) => {
         if (err) {
           return res.status(500).json({ error: "读取文件失败" });
