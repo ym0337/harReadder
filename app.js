@@ -1,7 +1,5 @@
 const fs = require("fs");
-const path = require("path");
 const { URL } = require("url");
-
 const { DICTIONNARY_PATH, RESPONSE_PATH } = require("./config/const.js");
 const { isValidJson } = require("./utils/utils.js");
 
@@ -9,8 +7,8 @@ const { isValidJson } = require("./utils/utils.js");
 !fs.existsSync(RESPONSE_PATH) && fs.mkdirSync(RESPONSE_PATH);
 
 let harFilePath = "";
-// console.log('子进程启动成功', process.argv[2].replace('--path=', ''));
 try {
+  // console.log('子进程启动成功', process.argv[2].replace('--path=', ''));
   harFilePath = process.argv[2].replace("--path=", "");
 } catch (error) {
   // 关闭进程0: 表示程序成功退出。 非 0 值（如 1、2 等）: 表示程序以错误状态退出。
