@@ -3,57 +3,80 @@ const path = require("path");
 
 // 获取当前目录的子目录 "data" 路径
 const dbPath = path.join(__dirname, "data", "harReader.db");
+// console.log("数据库路径:", dbPath);
 
 // 打开数据库
 const db = new sqlite3.Database(dbPath, (err) => {
   if (err) {
     console.error("打开数据库失败:", err);
   } else {
-    console.log("打开数据库成功", dbPath);
+    // console.log("打开数据库成功", dbPath);
   }
 });
 
 // 确保数据库表存在
 db.serialize(() => {
-  console.log("创建network_response表: db.js");
+  // console.log("创建network_response表: db.js");
   db.run(
     `CREATE TABLE IF NOT EXISTS network_response (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       method TEXT NOT NULL,
       path TEXT NOT NULL,
       fullpath TEXT NOT NULL,
-      apiName TEXT NOT NULL,
-      dictPath TEXT NOT NULL,
-      fileName TEXT NOT NULL,
-      date TEXT NOT NULL,
-      content TEXT NOT NULL
+      originfile TEXT NOT NULL,
+      createdate TEXT NOT NULL,
+      content TEXT
     )`,
     (err) => {
       if (err) {
         console.error("创建 network_response 表失败:", err);
       } else {
-        console.log('创建 network_response 表成功');
+        // console.log('创建 network_response 表成功');
       }
     }
   );
 });
 
 // 插入数据的函数
-function insertData(method, path, fullpath, apiName, dictPath, fileName, date, content) {
+// function insertData(method, path, fullpath, apiName, dictPath, fileName, date, content) {
+//   return new Promise((resolve, reject) => {
+//     db.run(
+//       "INSERT INTO network_response (method, path, fullpath, apiName, dictPath, fileName, date, content) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+//       [method, path, fullpath, apiName, dictPath, fileName, date, content],
+//       (err) => {
+//         if (err) {
+//           console.error("Error inserting data:", err);
+//           reject(err);
+//         } else {
+//           console.log("Data inserted successfully!");
+//           resolve(true);
+//         }
+//       }
+//     );
+//   });
+// }
+
+function insertData(sqlData=[]) {
   return new Promise((resolve, reject) => {
-    db.run(
-      "INSERT INTO network_response (method, path, fullpath, apiName, dictPath, fileName, date, content) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-      [method, path, fullpath, apiName, dictPath, fileName, date, content],
-      (err) => {
-        if (err) {
-          console.error("Error inserting data:", err);
-          reject(err);
-        } else {
-          console.log("Data inserted successfully!");
-          resolve(true);
-        }
+    const stmt = db.prepare("INSERT INTO network_response (method, path, fullpath, content) VALUES (?, ?, ?, ?)");
+    sqlData.forEach(item => {
+      stmt.run(item.method||'', item.path||'', item.fullpath||'', item.content||'');
+    });
+    stmt.finalize((err) => {
+      if (err) {
+        console.error("数据批量插入失败:", err);
+        reject(JSON.stringify({
+          success: false,
+          message: err
+        }));
+      } else {
+        // console.log("数据批量插入成功!");
+        resolve(JSON.stringify({
+          success: true,
+          message: '数据批量插入成功'
+        }));
       }
-    );
+    });
   });
 }
 
