@@ -178,7 +178,7 @@ router.delete("/files/:filename", (req, res) => {
 // 创建执行脚本的接口
 router.post("/run-script", (req, res) => {
   const { filePath } = req.body;
-  exec(`node app.js --path=${filePath}`, (error, stdout, stderr) => {
+  exec(`node app_sqlite.js --path=${filePath}`, (error, stdout, stderr) => {
     if (error) {
       console.error(`node app.js执行错误: ${error}`);
       return res.status(500).json({ error: `执行错误: ${error.message}` });
@@ -190,18 +190,9 @@ router.post("/run-script", (req, res) => {
     }
     console.log(`node app.js执行完成: ${stdout}`);
     const output = JSON.parse(stdout);
-    if ((output.api_status = 200)) {
-      fs.readFile(output.path, "utf-8", (err, data) => {
-        if (err) {
-          return res.status(500).json({ error: "读取文件失败" });
-        }
-        try {
-          res.status(200).json(JSON.parse(data)); // 返回 JSON 文件的内容
-        } catch (error) {
-          res.status(500).json({ error: "解析 JSON 失败" });
-        }
-      });
-    } else {
+    if(output.success){
+      res.status(200).json({ message: "执行成功" });
+    }else{
       res.status(500).json({ error: "执行失败" });
     }
   });
