@@ -61,7 +61,10 @@ async function processHarEntries(entries) {
     // 创建文件并写入内容
     // writeResponseFile(apiName, entry.response.content.text);
   });
-  const dbres = await db.insertData(dbdata);
+  const dbres = await db.insertData({
+    tableName:'network_response',
+    sqlData:dbdata
+  });
   // 数据插入完，console.log输出会 回调 exce 方法
   console.log(dbres);
 }

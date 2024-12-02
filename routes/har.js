@@ -10,6 +10,7 @@ const {
   RESPONSE_PATH,
 } = require("../config/const.js");
 const { generateUniqueCode } = require("../utils/utils.js");
+const db = require("../SQLite/db.js");
 
 // 设置上传文件的保存路径
 if (!fs.existsSync(UPLOADFILE_PATH)) {
@@ -62,12 +63,23 @@ router.get("/config", (req, res) => {
 });
 
 // 创建上传接口
-router.post("/upload", upload.single("file"), (req, res) => {
+router.post("/upload", upload.single("file"), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: "没有选择文件" });
   }
   if (req.file) {
     // 你可以在这里返回文件名和其他信息
+    const dbres = await db.insertData({
+      tableName: "save_files",
+      sqlData: [
+        {
+          filename: req.file.originalname, // 返回文件名
+          path: req.file.path, // 返回文件路径
+          key: req.file.filename, // 唯一码
+          createdAt: new Date().toLocaleString(), // 上传时间
+        },
+      ],
+    });
     return res.status(200).json({
       message: "文件上传成功",
       filename: req.file.filename.split("-_-")[1] || req.file.filename, // 返回文件名
@@ -79,83 +91,36 @@ router.post("/upload", upload.single("file"), (req, res) => {
 
 // 返回接口json数据
 router.get("/api/info", (req, res) => {
-  fs.readFile(
-    path.join(DICTIONNARY_PATH, "接口关系.json"),
-    "utf-8",
-    (err, data) => {
-      if (err) {
-        return res.status(500).json({ error: "读取文件夹失败" });
-      }
-      res.status(200).json(JSON.parse(data));
+  db.all("SELECT * FROM network_response", [], (err, rows) => {
+    if (err) {
+      return res.status(500).json({ error: err || "获取数据失败" });
     }
-  );
+    res.status(200).json({
+      code: 200,
+      message: "获取数据成功",
+      data: rows,
+      methodOptions: [],
+    });
+  });
 });
 
-router.get("/api/detail/:filename", (req, res) => {
-  const filename = req.params.filename;
-  const filePath = path.join(RESPONSE_PATH, filename);
-  if (!filename) {
-    return res.status(500).json({ error: "没有对应接口json文件" });
-  }
-  const ext = path.extname(filePath);
-  fs.readFile(filePath, "utf-8", (err, data) => {
+router.get("/api/detail/:id", async (req, res) => {
+  const id = req.params.id;
+  db.all("SELECT content FROM network_response WHERE id = ?", [id], (err, rows) => {
     if (err) {
-      return res.status(500).json({ error: "读取文件失败" });
+      return res.status(500).json({ error: err || "获取数据失败" });
     }
-    try {
-      if (ext === ".json") {
-        res.json(JSON.parse(data)); // 返回 JSON 文件的内容
-      } else if (ext === ".txt") {
-        res.type("text/plain").send(data); // 返回纯文本文件的内容
-      } else {
-        res.status(400).json({ error: "不支持的文件类型" });
-      }
-    } catch (error) {
-      res.status(500).json({ error: "解析 JSON 失败" });
-    }
+    res.status(200).json(JSON.parse(rows[0].content));
   });
 });
 
 // 创建接口返回 uploadFile 文件夹中的文件信息
 router.get("/files", (req, res) => {
-  fs.readdir(UPLOADFILE_PATH, (err, files) => {
+  db.all("SELECT * FROM save_files", [], (err, rows) => {
     if (err) {
-      return res.status(500).json({ error: "读取文件夹失败" });
+      return res.status(500).json({ error: err || "获取数据失败" });
     }
-
-    const fileInfoPromises = files.map((file, index) => {
-      const filePath = path.join(UPLOADFILE_PATH, file);
-      return new Promise((resolve) => {
-        fs.stat(filePath, (err, stats) => {
-          if (err) {
-            return resolve({ filename: file, error: "获取文件信息失败" });
-          }
-
-          // 格式化创建时间
-          const createdAt = new Date(stats.birthtime).toLocaleString("zh-CN", {
-            year: "numeric",
-            month: "2-digit",
-            day: "2-digit",
-            hour: "2-digit",
-            minute: "2-digit",
-            second: "2-digit",
-            hour12: false, // 24小时制
-          });
-          const file_split = file.split("-_-");
-          resolve({
-            id: index + 1, // 序号
-            key: file, // 唯一码
-            filename: file_split[1], // 文件名
-            createdAt: createdAt, // new Date().toLocaleString()
-            path: filePath, // 文件路径
-          });
-        });
-      });
-    });
-
-    Promise.all(fileInfoPromises).then((fileInfo) => {
-      res.status(200).json(fileInfo);
-    });
+    res.status(200).json(rows);
   });
 });
 
@@ -171,7 +136,19 @@ router.delete("/files/:filename", (req, res) => {
       }
       return res.status(500).json({ error: "删除文件失败" });
     }
-    res.status(200).json({ message: "文件删除成功", filename: filename.split("-_-")[1] });
+    // 删除用户数据
+    db.run("DELETE FROM save_files WHERE key = ?", [filename], function (err) {
+      if (err) {
+        console.error("删除数据失败:", err);
+        return res.status(500).json({ error: err || "删除文件失败" });
+      } else {
+        console.log(`Deleted ${this.changes} row(s)`);
+        res.status(200).json({
+          message: "文件删除成功",
+          filename: filename.split("-_-")[1],
+        });
+      }
+    });
   });
 });
 
@@ -190,9 +167,9 @@ router.post("/run-script", (req, res) => {
     }
     console.log(`node app.js执行完成: ${stdout}`);
     const output = JSON.parse(stdout);
-    if(output.success){
+    if (output.success) {
       res.status(200).json({ message: "执行成功" });
-    }else{
+    } else {
       res.status(500).json({ error: "执行失败" });
     }
   });
