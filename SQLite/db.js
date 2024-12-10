@@ -32,8 +32,9 @@ db.serialize(() => {
       method TEXT NOT NULL,
       path TEXT NOT NULL,
       fullpath TEXT NOT NULL,
-      originfile TEXT,
-      createdate TEXT,
+      originfile TEXT NOT NULL,
+      createdate TEXT NOT NULL,
+      key TEXT NOT NULL,
       content TEXT
     )`,
     (err) => {
@@ -52,7 +53,7 @@ db.serialize(() => {
       filename TEXT NOT NULL,
       key TEXT NOT NULL,
       path TEXT NOT NULL,
-      size TEXT NOT NULL,
+      size INTEGER,
       createdAt TEXT NOT NULL)`,
     (err) => {
       if (err) {
@@ -65,8 +66,8 @@ db.serialize(() => {
 });
 
 const tableSql = {
-  network_response:["method", "path", "fullpath", "content"],
-  save_files:["filename", "key", "path", "createdAt"]
+  network_response:["method", "path", "fullpath", "originfile", "createdate", "key", "content"],
+  save_files:["filename", "key", "path", "size", "createdAt"]
 }
 
 function insertData({ tableName = "", sqlData = [] }) {
@@ -94,11 +95,11 @@ function insertData({ tableName = "", sqlData = [] }) {
           })
         );
       } else {
-        // console.log("数据批量插入成功!");
         resolve(
           JSON.stringify({
             success: true,
             message: "数据批量插入成功",
+            count: sqlData.length, // 返回插入数量
           })
         );
       }
