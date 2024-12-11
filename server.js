@@ -86,7 +86,7 @@ app.options("*", (req, res) => {
 
 function returnJson(reqPath, res) {
   db.all(
-    "SELECT content FROM network_response WHERE path = ?",
+    "SELECT content FROM network_response WHERE path = ? order by id desc limit 1", // limit 1：此子句限制了查询结果的返回条数为 1。这意味着查询只会返回排序后的第一条记录，也就是 id 值最大的那一条记录。
     [reqPath],
     (err, rows) => {
       if (err) {

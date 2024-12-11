@@ -190,7 +190,7 @@ function deleteData(id) {
 // 查询数据的函数
 function queryData({ tableName = "", id = "" }) {
   return new Promise((resolve, reject) => {
-    let query = "SELECT * FROM network_response";
+    let query = "SELECT * FROM network_response order by createdate desc, id desc";
     let params = [];
 
     // 构建查询条件

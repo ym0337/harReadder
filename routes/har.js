@@ -94,7 +94,7 @@ router.post("/upload", upload.single("file"), async (req, res) => {
 
 // 返回接口json数据
 router.get("/api/info", (req, res) => {
-  db.all("SELECT id, method, path, fullpath, originfile, createdate FROM network_response", [], (err, rows) => {
+  db.all("SELECT id, method, path, fullpath, originfile, createdate FROM network_response order by createdate desc, id desc", [], (err, rows) => {
     if (err) {
       return res.status(500).json({ error: err || "获取数据失败" });
     }
@@ -117,7 +117,7 @@ router.get("/api/info", (req, res) => {
 router.get("/api/detail/:id", async (req, res) => {
   const id = req.params.id;
   db.all(
-    "SELECT content FROM network_response WHERE id = ?",
+    "SELECT content FROM network_response WHERE id = ? order by createdate desc, id desc",
     [id],
     (err, rows) => {
       if (err) {
@@ -135,7 +135,7 @@ router.get("/api/detail/:id", async (req, res) => {
 
 // 创建接口返回 uploadFile 文件夹中的文件信息
 router.get("/files", (req, res) => {
-  db.all("SELECT * FROM save_files", [], (err, rows) => {
+  db.all("SELECT * FROM save_files order by createdAt desc, id desc", [], (err, rows) => {
     if (err) {
       return res.status(500).json({ error: err || "获取数据失败" });
     }
