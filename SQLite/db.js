@@ -66,43 +66,70 @@ db.serialize(() => {
 });
 
 const tableSql = {
-  network_response:["method", "path", "fullpath", "originfile", "createdate", "key", "content"],
-  save_files:["filename", "key", "path", "size", "createdAt"]
-}
+  network_response: [
+    "method",
+    "path",
+    "fullpath",
+    "originfile",
+    "createdate",
+    "key",
+    "content",
+  ],
+  save_files: ["filename", "key", "path", "size", "createdAt"],
+};
 
 function insertData({ tableName = "", sqlData = [] }) {
   if (!tableName) {
     return Promise.reject("tableName不能为空");
   }
   const columns = tableSql[tableName];
+  // 构建动态的插入 SQL 语句
+  const placeholders = columns.map(() => "?").join(", ");
+  const sql = `INSERT INTO ${tableName} (${columns.join(
+    ","
+  )}) VALUES (${placeholders})`;
+  const stmt = db.prepare(sql);
   return new Promise((resolve, reject) => {
-    // 构建动态的插入 SQL 语句
-    const placeholders = columns.map(() => "?").join(", ");
-    const sql = `INSERT INTO ${tableName} (${columns.join(",")}) VALUES (${placeholders})`;
-    const stmt = db.prepare(sql);
-    sqlData.forEach((item) => {
-      // 通过 columns 按顺序提取数据并赋予占位符
-      const values = columns.map((column) => item[column] || "");
-      stmt.run(values);
-    });
-    stmt.finalize((err) => {
+    // 开启事务
+    db.run("BEGIN TRANSACTION", (err) => {
       if (err) {
-        // console.error("数据批量插入失败:", err);
-        reject(
-          JSON.stringify({
-            success: false,
-            message: err,
-          })
-        );
-      } else {
-        resolve(
-          JSON.stringify({
-            success: true,
-            message: "数据批量插入成功",
-            count: sqlData.length, // 返回插入数量
-          })
-        );
+        return reject("开启事务失败");
       }
+      sqlData.forEach((item) => {
+        // 通过 columns 按顺序提取数据并赋予占位符
+        const values = columns.map((column) => item[column] || "");
+        stmt.run(values);
+      });
+      stmt.finalize((err) => {
+        if (err) {
+          // console.error("数据批量插入失败:", err);
+          return db.run("ROLLBACK", () => {
+            reject(
+              JSON.stringify({
+                success: false,
+                message: "准备语句关闭失败，事务已回滚: " + err,
+              })
+            );
+          });
+        }
+        db.run("COMMIT", (err) => {
+          if (err) {
+            return reject(
+              JSON.stringify({
+                success: false,
+                message: "提交事务失败: " + err,
+              })
+            );
+          }
+          resolve(
+            JSON.stringify({
+              success: true,
+              message: "数据批量插入成功",
+              count: sqlData.length, // 返回插入数量
+            })
+          );
+        });
+      });
     });
   });
 }
