@@ -35,7 +35,9 @@ db.serialize(() => {
       originfile TEXT NOT NULL,
       createdate TEXT NOT NULL,
       key TEXT NOT NULL,
-      content TEXT
+      content TEXT,
+      queryString TEXT,
+      postData TEXT
     )`,
     (err) => {
       if (err) {
@@ -74,6 +76,8 @@ const tableSql = {
     "createdate",
     "key",
     "content",
+    "queryString",
+    "postData",
   ],
   save_files: ["filename", "key", "path", "size", "createdAt"],
 };

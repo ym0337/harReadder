@@ -3,7 +3,7 @@ const path = require("path");
 const express = require("express");
 const router = express.Router();
 const multer = require("multer");
-const { isValidJson } = require("../utils/utils.js");
+const { isValidJson, isEqualAsObject, isEqualArrayUnordered } = require("../utils/utils.js");
 // const { exec } = require("child_process"); // 引入 child_process 模块
 const {
   UPLOADFILE_PATH,
@@ -12,6 +12,7 @@ const {
 } = require("../config/const.js");
 const { generateUniqueCode } = require("../utils/utils.js");
 const db = require("../SQLite/db.js");
+const { PORT } = require("../config/const.js");
 
 // 设置上传文件的保存路径
 if (!fs.existsSync(UPLOADFILE_PATH)) {
@@ -94,13 +95,14 @@ router.post("/upload", upload.single("file"), async (req, res) => {
 
 // 返回接口json数据
 router.get("/api/info", (req, res) => {
-  db.all("SELECT id, method, path, fullpath, originfile, createdate FROM network_response order by createdate desc, id desc", [], (err, rows) => {
+  db.all("SELECT id, method, path, fullpath, originfile, createdate, queryString, postData FROM network_response order by createdate desc, id desc", [], (err, rows) => {
     if (err) {
       return res.status(500).json({ error: err || "获取数据失败" });
     }
     const _methodOptions = []
     rows = rows.map((row,index) => {
       row.no = index + 1;
+      row.localFullPath = `http://localhost:${PORT}${row.path}${row.queryString}`
       _methodOptions.push(row.method)
       return row;
     })
@@ -223,6 +225,9 @@ async function processHarEntries({ entries, key, filename }) {
   // 插入多条数据
   entries.forEach((entry) => {
     const url = new URL(entry.request.url);
+    // if(entry.request.method === 'GET'){
+    //   console.log(url.search)
+    // }
     dbdata.push({
       method: entry.request.method,
       path: url.pathname,
@@ -231,6 +236,8 @@ async function processHarEntries({ entries, key, filename }) {
       createdate: new Date().toLocaleString(),
       content: entry.response.content.text,
       key: key,
+      queryString: url.search || "", // sqlite没有数组类型，所以用字符串代替
+      postData: entry.request?.postData?.text || "",
     });
   });
   const dbres = await db.insertData({

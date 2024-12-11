@@ -5,13 +5,12 @@ const path = require("path");
 const cors = require("cors"); // 引入 cors
 const { isValidJson } = require("./utils/utils.js");
 const db = require("./SQLite/db.js");
-
-const { DICTIONNARY_PATH, RESPONSE_PATH } = require("./config/const.js");
+// 端口
+const { PORT } = require("./config/const.js");
 
 const harRoutes = require("./routes/har.js");
 
 const app = express();
-const PORT = 3011;
 
 // 解析 JSON 请求体
 app.use(express.json());
@@ -39,6 +38,7 @@ app.get("*", (req, res) => {
   if (!req.path) {
     res.status(500).json({ message: `没有 ${req.path} 路径的接口` });
   }
+  console.log(req.query);
   returnJson(req.path, res);
 });
 
@@ -46,6 +46,7 @@ app.post("*", (req, res) => {
   if (!req.path) {
     res.status(500).json({ message: `没有 ${req.path} 路径的接口` });
   }
+  console.log(req.body);
   returnJson(req.path, res);
 });
 
