@@ -103,69 +103,6 @@ function returnJson(reqPath, res) {
   );
 }
 
-// let config;
-
-// try {
-//   const configFile = fs.readFileSync(
-//     path.join(DICTIONNARY_PATH, "接口关系.json"),
-//     "utf-8"
-//   );
-//   // 解析 JSON 配置文件
-//   config = isValidJson(configFile) ? JSON.parse(configFile) : { data: [] };
-// } catch (error) {
-//   console.error("读取配置文件失败:", error);
-//   process.exit(1); // 读取配置失败，退出程序
-// }
-
-// 读取文件并返回 JSON
-// const readFileAndRespond = (filePath, res) => {
-//   const ext = path.extname(filePath);
-//   fs.readFile(filePath, "utf-8", (err, data) => {
-//     if (err) {
-//       return res.status(500).json({ error: "读取文件失败" });
-//     }
-//     try {
-//       if (ext === ".json") {
-//         res.json(JSON.parse(data)); // 返回 JSON 文件的内容
-//       } else if (ext === ".txt") {
-//         res.type("text/plain").send(data); // 返回纯文本文件的内容
-//       } else {
-//         res.status(400).json({ error: "不支持的文件类型" });
-//       }
-//     } catch (error) {
-//       res.status(500).json({ error: "解析 JSON 失败" });
-//     }
-//   });
-// };
-
-// 根据配置生成接口
-// config.data.forEach((apiconfig) => {
-//   const { method, path, apiName } = apiconfig;
-//   const lowerMethod = method.toLowerCase();
-//   try {
-//     if (!lowerMethod) {
-//       console.log('\x1b[31m%s\x1b[0m', `method 有问题: ${lowerMethod}`);
-//       return;
-//     }
-//     app[lowerMethod](path, (req, res) => {
-//       readFileAndRespond(`${RESPONSE_PATH}/${apiName}`, res);
-//     });
-//   } catch (error) {
-//     console.log('\x1b[31m%s\x1b[0m', `根据配置生成接口失败:${error}`);
-//   }
-
-// console.log(`注册接口: ${method} ${path} => ${apiName}`);
-// if (lowerMethod === "get") {
-//   app.get(path, (req, res) => {
-//     readFileAndRespond(`${RESPONSE_PATH}/${apiName}`, res);
-//   });
-// } else if (lowerMethod === "post") {
-//   app.post(path, (req, res) => {
-//     readFileAndRespond(`${RESPONSE_PATH}/${apiName}`, res);
-//   });
-// }
-// });
-
 app.get("*", (req, res) => {
   console.log(`请求路径: ${req.path},没有找到，可能需要重启server.js`);
   res.status(404).send(
