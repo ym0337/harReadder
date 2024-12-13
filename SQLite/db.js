@@ -65,6 +65,32 @@ db.serialize(() => {
       }
     }
   );
+
+    // 服务配置表
+    db.run(
+      `CREATE TABLE IF NOT EXISTS server_config (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        config TEXT NOT NULL
+      )`,
+      (err) => {
+        if (err) {
+          console.error("创建 server_config 表失败:", err);
+        } else {
+          console.log("创建 server_config 表成功");
+          // 写入默认数据,默认不匹配参数传输查询
+          db.run(
+            `INSERT INTO server_config (config) VALUES ('{"allowParameterTransmission": false}')`,
+            (err) => {
+              if (err) {
+                console.error("写入server_config默认配置失败:", err);
+              } else {
+                console.log("写入server_config默认配置成功");
+              }
+            }
+          );
+        }
+      }
+    );
 });
 
 const tableSql = {
@@ -138,59 +164,6 @@ function insertData({ tableName = "", sqlData = [] }) {
   });
 }
 
-// 更新数据的函数
-function updateData(
-  id,
-  method,
-  path,
-  fullpath,
-  apiName,
-  dictPath,
-  fileName,
-  date,
-  content
-) {
-  return new Promise((resolve, reject) => {
-    db.run(
-      `UPDATE network_response SET 
-        method = ?, 
-        path = ?, 
-        fullpath = ?, 
-        apiName = ?, 
-        dictPath = ?, 
-        fileName = ?, 
-        date = ?, 
-        content = ? 
-      WHERE id = ?`,
-      [method, path, fullpath, apiName, dictPath, fileName, date, content, id],
-      (err) => {
-        if (err) {
-          console.error("Error updating data:", err);
-          reject(err);
-        } else {
-          console.log("Data updated successfully!");
-          resolve(true);
-        }
-      }
-    );
-  });
-}
-
-// 删除数据的函数
-function deleteData(id) {
-  return new Promise((resolve, reject) => {
-    db.run("DELETE FROM network_response WHERE id = ?", [id], (err) => {
-      if (err) {
-        console.error("Error deleting data:", err);
-        reject(err);
-      } else {
-        console.log("Data deleted successfully!");
-        resolve(true);
-      }
-    });
-  });
-}
-
 // 查询数据的函数
 function queryData({ tableName = "", id = "" }) {
   return new Promise((resolve, reject) => {
@@ -234,8 +207,6 @@ function queryData({ tableName = "", id = "" }) {
 // });
 
 db.insertData = insertData;
-db.updateData = updateData; // 导出更新数据的函数
-db.deleteData = deleteData; // 导出删除数据的函数
 db.queryData = queryData;
 
 // 导出数据库对象

@@ -3,14 +3,11 @@ const path = require("path");
 const express = require("express");
 const router = express.Router();
 const multer = require("multer");
-const { isValidJson, isEqualAsObject, isEqualArrayUnordered } = require("../utils/utils.js");
+const { generateUniqueCode, isValidJson, isEqualAsObject, isEqualArrayUnordered } = require("../utils/utils.js");
 // const { exec } = require("child_process"); // 引入 child_process 模块
 const {
   UPLOADFILE_PATH,
-  DICTIONNARY_PATH,
-  RESPONSE_PATH,
 } = require("../config/const.js");
-const { generateUniqueCode } = require("../utils/utils.js");
 const db = require("../SQLite/db.js");
 const { PORT } = require("../config/const.js");
 
@@ -51,19 +48,6 @@ router.post("/login", (req, res) => {
   });
 });
 
-router.get("/config", (req, res) => {
-  fs.readFile(
-    path.join(DICTIONNARY_PATH, "接口_config.json"),
-    "utf-8",
-    (err, data) => {
-      if (err) {
-        return res.status(500).json({ error: "读取文件夹失败" });
-      }
-      res.status(200).json(JSON.parse(data));
-    }
-  );
-});
-
 // 创建上传接口
 router.post("/upload", upload.single("file"), async (req, res) => {
   if (!req.file) {
@@ -75,7 +59,7 @@ router.post("/upload", upload.single("file"), async (req, res) => {
       tableName: "save_files",
       sqlData: [
         {
-          filename: req.file.originalname, // 返回文件名
+          filename: Buffer.from(req.file.originalname, "latin1").toString("utf8"), // 处理中文编码,乱码
           path: req.file.path, // 返回文件路径
           key: req.file.filename, // 唯一码
           size: req.file.size || 0, // 文件大小
@@ -194,14 +178,44 @@ router.delete("/apisbykey/:key", (req, res) => {
   })
 })
 
+// 更新系统配置，是否匹配传参
+router.post("/config/allowParameterTransmission", (req, res) => {
+  const allow = req.body.allow || false; 
+  if (typeof allow !== 'boolean') {
+    return res.status(400).json({ error: 'allow参数必须为布尔值' });
+  }
+  db.run('UPDATE server_config SET config = ? WHERE id = (SELECT id FROM server_config ORDER BY id DESC LIMIT 1)', [JSON.stringify({ allowParameterTransmission: allow })], function(err) {
+    if (err) {
+      console.error('Error updating data:', err);
+      return res.status(500).json({ error: '更新配置失败', success: false });
+    } else {
+      res.status(200).json({ message: '更新配置成功', success: true, data: allow });
+    }
+  });
+})
+
+// 更新系统配置，是否匹配传参
+router.get("/config/server", (req, res) => {
+  db.all('SELECT config FROM server_config ORDER BY id DESC LIMIT 1', [], function(err, rows) {
+    if (err) {
+      console.error('获取服务配置失败:', err);
+      return res.status(500).json({ error: '获取服务配置失败', success: false });
+    } else {
+      const config = JSON.parse(rows[0].config);
+      res.status(200).json({ message: '获取服务配置成功', success: true, config: {allow: config.allowParameterTransmission} });
+    }
+  });
+})
+
 // 创建执行脚本的接口
 router.post("/run-script", async (req, res) => {
   const { filePath, key, filename } = req.body;
-  // console.log(filePath);
+  console.log(filePath);
   // 读取 HAR 文件
   fs.readFile(filePath, "utf8", async (err, data) => {
     if (err) {
-      return console.error("读取文件失败:", err);
+      console.error("读取文件失败:", err);
+      return res.status(500).json({ message: "读取文件失败: " + err });
     }
     try {
       // 解析 HAR 数据
@@ -215,7 +229,7 @@ router.post("/run-script", async (req, res) => {
       res.status(200).json({ message: `${filename} 执行成功，新增 ${changes.count} 条数据` });
     } catch (parseError) {
       console.error("解析 JSON 失败:", parseError);
-      res.status(500).json({ message: parseError });
+      res.status(500).json({ message: "解析 JSON 失败:" + parseError });
     }
   });
 });
