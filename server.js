@@ -100,7 +100,7 @@ async function returnJson({ req, res, method }) {
         reject({allowParameterTransmission: false});
       } else {
         // console.log(row);
-        resolve(JSON.parse(row.config));
+        resolve(JSON.parse(row.config) || row);
       }
     });
   });
@@ -109,8 +109,7 @@ async function returnJson({ req, res, method }) {
   console.log(`${method} 请求路径: ${reqPath}`);
   // 只有 GET 和 POST 请求并且传参为对象时才会匹配查询条件
   const canDiff = method === "GET" || method === "POST";
-  const params2 =
-    method === "GET" ? req.query : method === "POST" ? req.body : null;
+  const params2 = method === "GET" ? req.query : method === "POST" ? req.body : null;
   if (!serverConfig.allowParameterTransmission || !canDiff || !isObject(params2)) {
     console.log(`没有查询条件，返回最新数据`);
     db.all(
@@ -146,6 +145,12 @@ async function returnJson({ req, res, method }) {
             method === "GET"
               ? queryStringToObject(row.queryString)
               : JSON.parse(row.postData);
+
+          if(params1.t && params2.t){
+            // 认为是时间戳,需要忽略掉
+            delete params1.t;
+            delete params2.t;
+          }
           return isEqualAsObject(params1, params2);
         });
         try {

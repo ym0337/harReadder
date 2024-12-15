@@ -3,11 +3,12 @@ const path = require("path");
 const express = require("express");
 const router = express.Router();
 const multer = require("multer");
-const { generateUniqueCode, isValidJson, isEqualAsObject, isEqualArrayUnordered } = require("../utils/utils.js");
-// const { exec } = require("child_process"); // 引入 child_process 模块
 const {
-  UPLOADFILE_PATH,
-} = require("../config/const.js");
+  generateUniqueCode,
+  isValidJson
+} = require("../utils/utils.js");
+// const { exec } = require("child_process"); // 引入 child_process 模块
+const { UPLOADFILE_PATH } = require("../config/const.js");
 const db = require("../SQLite/db.js");
 const { PORT } = require("../config/const.js");
 
@@ -59,7 +60,9 @@ router.post("/upload", upload.single("file"), async (req, res) => {
       tableName: "save_files",
       sqlData: [
         {
-          filename: Buffer.from(req.file.originalname, "latin1").toString("utf8"), // 处理中文编码,乱码
+          filename: Buffer.from(req.file.originalname, "latin1").toString(
+            "utf8"
+          ), // 处理中文编码,乱码
           path: req.file.path, // 返回文件路径
           key: req.file.filename, // 唯一码
           size: req.file.size || 0, // 文件大小
@@ -79,23 +82,58 @@ router.post("/upload", upload.single("file"), async (req, res) => {
 
 // 返回接口json数据
 router.get("/api/info", (req, res) => {
-  db.all("SELECT id, method, path, fullpath, originfile, createdate, queryString, postData FROM network_response order by createdate desc, id desc", [], (err, rows) => {
+  const { pageNo=1, pageSize=10, method, path, originfile } = req.query;
+  // console.log(pageNo,pageSize,method,path)
+  let params = [];
+  // 构建查询条件
+  const conditions = [];
+  if (method) {
+    conditions.push("method = ?");
+    params.push(method);
+  }
+  if (path) {
+    conditions.push("path LIKE ? COLLATE NOCASE");
+    params.push(`%${path}%`);
+  }
+  if (originfile) {
+    conditions.push("originfile LIKE ? COLLATE NOCASE");
+    params.push(`%${originfile}%`);
+  }
+  let whereSql = "";
+  if (conditions.length > 0) {
+    whereSql = "WHERE " + conditions.join(" AND ");
+  }
+  const offsetSize = (pageNo - 1) * pageSize;
+  const sql = `SELECT id, method, path, fullpath, originfile, createdate, queryString, postData FROM network_response 
+    ${whereSql} 
+    order by createdate desc, id desc 
+    LIMIT ${pageSize} OFFSET ${offsetSize};`;
+
+  db.all(sql, params, (err, rows) => {
     if (err) {
       return res.status(500).json({ error: err || "获取数据失败" });
     }
-    const _methodOptions = []
-    rows = rows.map((row,index) => {
-      row.no = index + 1;
-      row.localFullPath = `http://localhost:${PORT}${row.path}${row.queryString}`
-      _methodOptions.push(row.method)
+    const _methodOptions = [];
+    rows = rows.map((row, index) => {
+      row.no = offsetSize + index + 1;
+      row.localFullPath = `http://localhost:${PORT}${row.path}${row.queryString}`;
+      _methodOptions.push(row.method);
       return row;
-    })
-    res.status(200).json({
-      code: 200,
-      message: "获取数据成功",
-      total: rows.length,
-      data: rows,
-      methodOptions: [...new Set(_methodOptions)],
+    });
+
+    // 查询总数
+    db.get(`SELECT COUNT(*) as total FROM network_response ${whereSql} ;`, params ,(err, total) => {
+      if (err) {
+        console.error("获取总数失败:", err);
+        return res.status(500).json({ error: err || "获取总数失败" });
+      }
+      res.status(200).json({
+        code: 200,
+        message: "获取数据成功",
+        total: total.total,
+        data: rows,
+        methodOptions: [...new Set(_methodOptions)],
+      });
     });
   });
 });
@@ -121,16 +159,20 @@ router.get("/api/detail/:id", async (req, res) => {
 
 // 创建接口返回 uploadFile 文件夹中的文件信息
 router.get("/files", (req, res) => {
-  db.all("SELECT * FROM save_files order by createdAt desc, id desc", [], (err, rows) => {
-    if (err) {
-      return res.status(500).json({ error: err || "获取数据失败" });
+  db.all(
+    "SELECT * FROM save_files order by createdAt desc, id desc",
+    [],
+    (err, rows) => {
+      if (err) {
+        return res.status(500).json({ error: err || "获取数据失败" });
+      }
+      rows = rows.map((row, index) => {
+        row.no = index + 1;
+        return row;
+      });
+      res.status(200).json(rows);
     }
-    rows = rows.map((row,index) => {
-      row.no = index + 1;
-      return row;
-    });
-    res.status(200).json(rows);
-  });
+  );
 });
 
 // 创建删除文件的接口
@@ -175,37 +217,53 @@ router.delete("/apisbykey/:key", (req, res) => {
         key: key,
       });
     }
-  })
-})
+  });
+});
 
 // 更新系统配置，是否匹配传参
 router.post("/config/allowParameterTransmission", (req, res) => {
-  const allow = req.body.allow || false; 
-  if (typeof allow !== 'boolean') {
-    return res.status(400).json({ error: 'allow参数必须为布尔值' });
+  const allow = req.body.allow || false;
+  if (typeof allow !== "boolean") {
+    return res.status(400).json({ error: "allow参数必须为布尔值" });
   }
-  db.run('UPDATE server_config SET config = ? WHERE id = (SELECT id FROM server_config ORDER BY id DESC LIMIT 1)', [JSON.stringify({ allowParameterTransmission: allow })], function(err) {
-    if (err) {
-      console.error('Error updating data:', err);
-      return res.status(500).json({ error: '更新配置失败', success: false });
-    } else {
-      res.status(200).json({ message: '更新配置成功', success: true, data: allow });
+  db.run(
+    "UPDATE server_config SET config = ? WHERE id = (SELECT id FROM server_config ORDER BY id DESC LIMIT 1)",
+    [JSON.stringify({ allowParameterTransmission: allow })],
+    function (err) {
+      if (err) {
+        console.error("Error updating data:", err);
+        return res.status(500).json({ error: "更新配置失败", success: false });
+      } else {
+        res
+          .status(200)
+          .json({ message: "更新配置成功", success: true, data: allow });
+      }
     }
-  });
-})
+  );
+});
 
 // 更新系统配置，是否匹配传参
 router.get("/config/server", (req, res) => {
-  db.all('SELECT config FROM server_config ORDER BY id DESC LIMIT 1', [], function(err, rows) {
-    if (err) {
-      console.error('获取服务配置失败:', err);
-      return res.status(500).json({ error: '获取服务配置失败', success: false });
-    } else {
-      const config = JSON.parse(rows[0].config);
-      res.status(200).json({ message: '获取服务配置成功', success: true, config: {allow: config.allowParameterTransmission} });
+  db.all(
+    "SELECT config FROM server_config ORDER BY id DESC LIMIT 1",
+    [],
+    function (err, rows) {
+      if (err) {
+        console.error("获取服务配置失败:", err);
+        return res
+          .status(500)
+          .json({ error: "获取服务配置失败", success: false });
+      } else {
+        const config = JSON.parse(rows[0].config);
+        res.status(200).json({
+          message: "获取服务配置成功",
+          success: true,
+          config: { allow: config.allowParameterTransmission },
+        });
+      }
     }
-  });
-})
+  );
+});
 
 // 创建执行脚本的接口
 router.post("/run-script", async (req, res) => {
@@ -223,10 +281,12 @@ router.post("/run-script", async (req, res) => {
       const dbres = await processHarEntries({
         entries: harData.log.entries,
         key,
-        filename
+        filename,
       });
-      const changes = JSON.parse(dbres)
-      res.status(200).json({ message: `${filename} 执行成功，新增 ${changes.count} 条数据` });
+      const changes = JSON.parse(dbres);
+      res.status(200).json({
+        message: `${filename} 执行成功，新增 ${changes.count} 条数据`,
+      });
     } catch (parseError) {
       console.error("解析 JSON 失败:", parseError);
       res.status(500).json({ message: "解析 JSON 失败:" + parseError });
@@ -258,7 +318,7 @@ async function processHarEntries({ entries, key, filename }) {
     tableName: "network_response",
     sqlData: dbdata,
   });
-  console.log('dbres',dbres);
+  console.log("dbres", dbres);
   return dbres;
 }
 
