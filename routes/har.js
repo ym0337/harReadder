@@ -3,10 +3,7 @@ const path = require("path");
 const express = require("express");
 const router = express.Router();
 const multer = require("multer");
-const {
-  generateUniqueCode,
-  isValidJson
-} = require("../utils/utils.js");
+const { generateUniqueCode, isValidJson } = require("../utils/utils.js");
 // const { exec } = require("child_process"); // 引入 child_process 模块
 const { UPLOADFILE_PATH } = require("../config/const.js");
 const db = require("../SQLite/db.js");
@@ -82,7 +79,7 @@ router.post("/upload", upload.single("file"), async (req, res) => {
 
 // 返回接口json数据
 router.get("/api/info", (req, res) => {
-  const { pageNo=1, pageSize=10, method, path, originfile } = req.query;
+  const { pageNo = 1, pageSize = 10, method, path, originfile } = req.query;
   // console.log(pageNo,pageSize,method,path)
   let params = [];
   // 构建查询条件
@@ -122,19 +119,23 @@ router.get("/api/info", (req, res) => {
     });
 
     // 查询总数
-    db.get(`SELECT COUNT(*) as total FROM network_response ${whereSql} ;`, params ,(err, total) => {
-      if (err) {
-        console.error("获取总数失败:", err);
-        return res.status(500).json({ error: err || "获取总数失败" });
+    db.get(
+      `SELECT COUNT(*) as total FROM network_response ${whereSql} ;`,
+      params,
+      (err, total) => {
+        if (err) {
+          console.error("获取总数失败:", err);
+          return res.status(500).json({ error: err || "获取总数失败" });
+        }
+        res.status(200).json({
+          code: 200,
+          message: "获取数据成功",
+          total: total.total,
+          data: rows,
+          methodOptions: [...new Set(_methodOptions)],
+        });
       }
-      res.status(200).json({
-        code: 200,
-        message: "获取数据成功",
-        total: total.total,
-        data: rows,
-        methodOptions: [...new Set(_methodOptions)],
-      });
-    });
+    );
   });
 });
 
@@ -142,6 +143,25 @@ router.get("/api/detail/:id", async (req, res) => {
   const id = req.params.id;
   db.all(
     "SELECT content FROM network_response WHERE id = ? order by createdate desc, id desc",
+    [id],
+    (err, rows) => {
+      if (err) {
+        return res.status(500).json({ error: err || "获取数据失败" });
+      }
+      const isJson = isValidJson(rows[0].content);
+      if (!isJson) {
+        return res.status(200).send(rows[0].content);
+      } else {
+        res.status(200).json(JSON.parse(rows[0].content));
+      }
+    }
+  );
+});
+
+router.get("/myApi/detail/:id", async (req, res) => {
+  const id = req.params.id;
+  db.all(
+    "SELECT content FROM my_api_resquest WHERE id = ? order by createdate desc, id desc",
     [id],
     (err, rows) => {
       if (err) {
@@ -321,5 +341,188 @@ async function processHarEntries({ entries, key, filename }) {
   console.log("dbres", dbres);
   return dbres;
 }
+
+// 新增自定义接口
+router.post("/myApi/add", async (req, res) => {
+  const { method, path, active, postData, content } = req.body;
+  let queryString = "",
+    newPath = path;
+  // 使用正则表达式将键名加上双引号
+  if (method === "GET" && path.includes("?")) {
+    const pathArr = path.split("?");
+    newPath = pathArr[0];
+    queryString = pathArr[1];
+  }
+  let newContent = content;
+  let newPostData = postData;
+  const jsonContent = content.replace(/(\w+):/g, '"$1":');
+  const jsonPostData = postData.replace(/(\w+):/g, '"$1":');
+  // 解析为对象
+  try {
+    // 解析 JSON 字符串
+    const obj = JSON.parse(jsonContent);
+    // console.log(obj);
+    newContent = JSON.stringify(obj);
+  } catch (error) {
+    console.error("content 解析 JSON 失败:", error);
+  }
+  try {
+    // 解析 JSON 字符串
+    const obj = JSON.parse(jsonPostData);
+    // console.log(obj);
+    newPostData = JSON.stringify(obj);
+  } catch (error) {
+    console.error("postData 解析 JSON 失败:", error);
+  }
+  const dbdata = {
+    method,
+    path: newPath,
+    active: active === true ? "1" : "0",
+    content: newContent,
+    queryString: queryString ? `?${queryString}` : "",
+    postData: newPostData,
+    createdate: new Date().toLocaleString(),
+  };
+  const dbres = await db.insertData({
+    tableName: "my_api_resquest",
+    sqlData: [dbdata],
+  });
+  console.log("dbres", dbres);
+  res.status(200).json({
+    message: "新增接口成功",
+    data: dbdata,
+  });
+});
+
+// 获取自定义接口列表
+router.get("/myApi/list", async (req, res) => {
+  const { pageNo = 1, pageSize = 10, method, path, active } = req.query;
+  let params = [];
+  // 构建查询条件
+  const conditions = [];
+  if (method) {
+    conditions.push("method = ?");
+    params.push(method);
+  }
+  if (path) {
+    conditions.push("path LIKE ? COLLATE NOCASE");
+    params.push(`%${path}%`);
+  }
+  // if (active !== undefined) {
+  //   conditions.push("active = ?");
+  //   params.push(active === "true");
+  // }
+  let whereSql = "";
+  if (conditions.length > 0) {
+    whereSql = "WHERE " + conditions.join(" AND ");
+  }
+  const offsetSize = (pageNo - 1) * pageSize;
+  const sql = `SELECT id, method, path, active, content, queryString, postData, createdate FROM my_api_resquest 
+    ${whereSql} 
+    order by createdate desc, id desc 
+    LIMIT ${pageSize} OFFSET ${offsetSize};`;
+
+  db.all(sql, params, (err, rows) => {
+    if (err) {
+      return res.status(500).json({ error: err || "获取数据失败" });
+    }
+    const _methodOptions = [];
+    rows = rows.map((row, index) => {
+      row.no = offsetSize + index + 1;
+      row.path = row.path + (row.queryString ? row.queryString : "");
+      row.active = row.active === "1" ? "激活" : "禁用";
+      _methodOptions.push(row.method);
+      return row;
+    });
+
+    // 查询总数
+    db.get(
+      `SELECT COUNT(*) as total FROM my_api_resquest ${whereSql} ;`,
+      params,
+      (err, total) => {
+        if (err) {
+          console.error("获取总数失败:", err);
+          return res.status(500).json({ error: err || "获取总数失败" });
+        }
+        res.status(200).json({
+          code: 200,
+          message: "获取数据成功",
+          total: total.total,
+          data: rows,
+          methodOptions: [...new Set(_methodOptions)],
+        });
+      }
+    );
+  });
+});
+
+// 删除自定义接口
+router.delete("/myApi/delete/:id", (req, res) => {
+  const id = req.params.id;
+  db.run("DELETE FROM my_api_resquest WHERE id = ?", [id], function (err) {
+    if (err) {
+      console.error("删除自定义接口失败:", err);
+      return res.status(500).json({ error: err || "删除自定义接口失败" });
+    } else {
+      console.log(`删除自定义接口成功 ${this.changes} row(s)`);
+      res.status(200).json({
+        message: `删除自定义接口成功: ${this.changes} 个`,
+        success: true,
+      });
+    }
+  });
+});
+
+// 更新自定义接口
+router.put("/myApi/update", async (req, res) => {
+  const { id, method, path, active, postData, content } = req.body;
+  let queryString = "",
+    newPath = path;
+  // 使用正则表达式将键名加上双引号
+  if (method === "GET" && path.includes("?")) {
+    const pathArr = path.split("?");
+    newPath = pathArr[0];
+    queryString = pathArr[1];
+  }
+  let newContent = content;
+  let newPostData = postData;
+  const jsonContent = content.replace(/(\w+):/g, '"$1":');
+  const jsonPostData = postData.replace(/(\w+):/g, '"$1":');
+  // 解析为对象
+  try {
+    // 解析 JSON 字符串
+    const obj = JSON.parse(jsonContent);
+    // console.log(obj);
+    newContent = JSON.stringify(obj);
+  } catch (error) {
+    console.error("content 解析 JSON 失败:", error);
+  }
+  try {
+    // 解析 JSON 字符串
+    const obj = JSON.parse(jsonPostData);
+    // console.log(obj);
+    newPostData = JSON.stringify(obj);
+  } catch (error) {
+    console.error("postData 解析 JSON 失败:", error);
+  }
+  const dbdata = {
+    method,
+    path: newPath,
+    active: active === true ? "1" : "0",
+    content: newContent,
+    queryString: queryString ? `?${queryString}` : "",
+    postData: newPostData,
+  };
+  const dbres = await db.updateData({
+    tableName: "my_api_resquest",
+    sqlData: [dbdata],
+    condition: { id },
+  });
+  console.log("dbres", dbres);
+  res.status(200).json({
+    message: "更新接口成功",
+    data: dbdata,
+  });
+});
 
 module.exports = router;

@@ -93,28 +93,38 @@ app.options("*", (req, res) => {
 async function returnJson({ req, res, method }) {
   // server_config表中获取配置，判断是否需要匹配传参
   const serverConfig = await new Promise((resolve, reject) => {
-    db.get("SELECT * FROM server_config order by id desc LIMIT 1", (err, row) => {
-      if (err) {
-        console.error(err);
-        // 默认不匹配传参
-        reject({allowParameterTransmission: false});
-      } else {
-        // console.log(row);
-        resolve(JSON.parse(row.config) || row);
+    db.get(
+      "SELECT * FROM server_config order by id desc LIMIT 1",
+      (err, row) => {
+        if (err) {
+          console.error(err);
+          // 默认不匹配传参
+          reject({ allowParameterTransmission: false });
+        } else {
+          // console.log(row);
+          resolve(JSON.parse(row.config) || row);
+        }
       }
-    });
+    );
   });
-  console.log(serverConfig)
+  console.log(serverConfig);
   const reqPath = req.path;
   console.log(`${method} 请求路径: ${reqPath}`);
   // 只有 GET 和 POST 请求并且传参为对象时才会匹配查询条件
   const canDiff = method === "GET" || method === "POST";
-  const params2 = method === "GET" ? req.query : method === "POST" ? req.body : null;
-  if (!serverConfig.allowParameterTransmission || !canDiff || !isObject(params2)) {
+  const params2 =
+    method === "GET" ? req.query : method === "POST" ? req.body : null;
+  if (
+    !serverConfig.allowParameterTransmission ||
+    !canDiff ||
+    !isObject(params2)
+  ) {
     console.log(`没有查询条件，返回最新数据`);
     db.all(
-      "SELECT content FROM network_response WHERE path = ? order by id desc limit 1", // limit 1：此子句限制了查询结果的返回条数为 1。这意味着查询只会返回排序后的第一条记录，也就是 id 值最大的那一条记录。
-      [reqPath],
+      `SELECT content FROM network_response WHERE path = ? 
+       UNION ALL 
+       SELECT content FROM my_api_resquest WHERE path = ? ;`,
+      [reqPath, reqPath],
       (err, rows) => {
         if (err) {
           res.status(500).json({ error: err || "获取数据失败" });
@@ -134,8 +144,10 @@ async function returnJson({ req, res, method }) {
   } else {
     console.log("需要配置传参");
     db.all(
-      "SELECT method, content, queryString, postData FROM network_response WHERE path = ? order by id desc", // limit 1：此子句限制了查询结果的返回条数为 1。这意味着查询只会返回排序后的第一条记录，也就是 id 值最大的那一条记录。
-      [reqPath],
+      `SELECT  method, content, queryString, postData FROM network_response WHERE path = ? 
+       UNION ALL 
+       SELECT  method, content, queryString, postData FROM my_api_resquest WHERE path = ? AND active = 1 ;`,
+      [reqPath, reqPath],
       (err, rows) => {
         if (err) {
           res.status(500).json({ error: err || "获取数据失败" });
@@ -146,7 +158,7 @@ async function returnJson({ req, res, method }) {
               ? queryStringToObject(row.queryString)
               : JSON.parse(row.postData);
 
-          if(params1.t && params2.t){
+          if (params1.t && params2.t) {
             // 认为是时间戳,需要忽略掉
             delete params1.t;
             delete params2.t;
