@@ -76,7 +76,8 @@ db.serialize(() => {
       active TEXT NOT NULL,
       content TEXT,
       queryString TEXT,
-      postData TEXT
+      postData TEXT,
+      mark TEXT
       )`,
     (err) => {
       if (err) {
@@ -135,6 +136,7 @@ const tableSql = {
     "postData",
     "content",
     "createdate",
+    "mark"
   ],
 };
 

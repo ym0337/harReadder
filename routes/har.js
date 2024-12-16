@@ -344,7 +344,7 @@ async function processHarEntries({ entries, key, filename }) {
 
 // 新增自定义接口
 router.post("/myApi/add", async (req, res) => {
-  const { method, path, active, postData, content } = req.body;
+  const { method, path, active, postData, content, mark="" } = req.body;
   let queryString = "",
     newPath = path;
   // 使用正则表达式将键名加上双引号
@@ -382,6 +382,7 @@ router.post("/myApi/add", async (req, res) => {
     queryString: queryString ? `?${queryString}` : "",
     postData: newPostData,
     createdate: new Date().toLocaleString(),
+    mark,
   };
   const dbres = await db.insertData({
     tableName: "my_api_resquest",
@@ -417,7 +418,7 @@ router.get("/myApi/list", async (req, res) => {
     whereSql = "WHERE " + conditions.join(" AND ");
   }
   const offsetSize = (pageNo - 1) * pageSize;
-  const sql = `SELECT id, method, path, active, content, queryString, postData, createdate FROM my_api_resquest 
+  const sql = `SELECT id, method, path, active, content, queryString, postData, createdate, mark FROM my_api_resquest 
     ${whereSql} 
     order by createdate desc, id desc 
     LIMIT ${pageSize} OFFSET ${offsetSize};`;
@@ -475,7 +476,7 @@ router.delete("/myApi/delete/:id", (req, res) => {
 
 // 更新自定义接口
 router.put("/myApi/update", async (req, res) => {
-  const { id, method, path, active, postData, content } = req.body;
+  const { id, method, path, active, postData, content, mark } = req.body;
   let queryString = "",
     newPath = path;
   // 使用正则表达式将键名加上双引号
@@ -512,6 +513,7 @@ router.put("/myApi/update", async (req, res) => {
     content: newContent,
     queryString: queryString ? `?${queryString}` : "",
     postData: newPostData,
+    mark,
   };
   const dbres = await db.updateData({
     tableName: "my_api_resquest",
