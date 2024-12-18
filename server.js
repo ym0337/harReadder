@@ -121,9 +121,9 @@ async function returnJson({ req, res, method }) {
   ) {
     console.log(`没有查询条件，返回最新数据`);
     db.all(
-      `SELECT content FROM network_response WHERE path = ? 
+      `SELECT content FROM my_api_resquest WHERE path = ? AND active = 1 
        UNION ALL 
-       SELECT content FROM my_api_resquest WHERE path = ? ;`,
+       SELECT content FROM network_response WHERE path = ? AND active = 1 ;`,
       [reqPath, reqPath],
       (err, rows) => {
         if (err) {
@@ -137,16 +137,19 @@ async function returnJson({ req, res, method }) {
             res.status(200).json(JSON.parse(rows[0].content));
           }
         } catch (error) {
-          res.status(500).json({ error: error || "获取数据失败" });
+          res.status(500).json({
+            error: error || "获取数据失败",
+            message: "确认是否开启了传参匹配, 或者禁用了接口状态",
+          });
         }
       }
     );
   } else {
     console.log("需要配置传参");
     db.all(
-      `SELECT  method, content, queryString, postData FROM network_response WHERE path = ? 
+      `SELECT  method, content, queryString, postData FROM my_api_resquest WHERE path = ? AND active = 1 
        UNION ALL 
-       SELECT  method, content, queryString, postData FROM my_api_resquest WHERE path = ? AND active = 1 ;`,
+       SELECT  method, content, queryString, postData FROM network_response WHERE path = ? AND active = 1 ;`,
       [reqPath, reqPath],
       (err, rows) => {
         if (err) {
@@ -173,7 +176,10 @@ async function returnJson({ req, res, method }) {
             res.status(200).json(JSON.parse(result.content));
           }
         } catch (error) {
-          res.status(500).json({ error: error || "获取数据失败" });
+          res.status(500).json({
+            error: error || "获取数据失败",
+            message: "确认是否开启了传参匹配, 或者禁用了接口状态",
+          });
         }
       }
     );

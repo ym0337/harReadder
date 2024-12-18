@@ -37,7 +37,8 @@ db.serialize(() => {
       key TEXT NOT NULL,
       content TEXT,
       queryString TEXT,
-      postData TEXT
+      postData TEXT,
+      active TEXT NOT NULL
     )`,
     (err) => {
       if (err) {
@@ -101,7 +102,7 @@ db.serialize(() => {
         console.log("创建 server_config 表成功");
         // 写入默认数据,默认不匹配参数传输查询
         db.run(
-          `INSERT INTO server_config (config) VALUES ('{"allowParameterTransmission": true}')`,
+          `INSERT INTO server_config (config) VALUES ('{"allowParameterTransmission": false}')`,
           (err) => {
             if (err) {
               console.error("写入server_config默认配置失败:", err);
@@ -126,6 +127,7 @@ const tableSql = {
     "content",
     "queryString",
     "postData",
+    "active"
   ],
   save_files: ["filename", "key", "path", "size", "createdAt"],
   my_api_resquest: [
@@ -189,6 +191,59 @@ function insertData({ tableName = "", sqlData = [] }) {
               success: true,
               message: "数据批量插入成功",
               count: sqlData.length, // 返回插入数量
+            })
+          );
+        });
+      });
+    });
+  });
+}
+
+// 只更新指定字段
+function updateDataById({ tableName = "", sqlData = []}) {
+  if (!tableName) {
+    return Promise.reject("tableName不能为空");
+  }
+
+  // 构建动态的插入 SQL 语句
+  const sql = `UPDATE ${tableName} SET active = ? WHERE id = ?`;
+  const stmt = db.prepare(sql);
+  return new Promise((resolve, reject) => {
+    // 开启事务
+    db.run("BEGIN TRANSACTION", (err) => {
+      if (err) {
+        return reject("开启事务失败");
+      }
+      sqlData.forEach((item) => {
+        stmt.run(item.active, item.id);
+      })
+      // 通过 columns 按顺序提取数据并赋予占位符
+      stmt.finalize((err) => {
+        if (err) {
+          // console.error("数据批量插入失败:", err);
+          return db.run("ROLLBACK", () => {
+            reject(
+              JSON.stringify({
+                success: false,
+                message: "准备语句关闭失败，事务已回滚: " + err,
+              })
+            );
+          });
+        }
+        db.run("COMMIT", (err) => {
+          if (err) {
+            return reject(
+              JSON.stringify({
+                success: false,
+                message: "提交事务失败: " + err,
+              })
+            );
+          }
+          resolve(
+            JSON.stringify({
+              success: true,
+              message: "数据更新成功",
+              count: 1, // 返回插入数量
             })
           );
         });
@@ -298,6 +353,7 @@ function queryData({ tableName = "", id = "" }) {
 db.insertData = insertData;
 db.queryData = queryData;
 db.updateData = updateData;
+db.updateDataById = updateDataById;
 
 // 导出数据库对象
 module.exports = db;

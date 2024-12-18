@@ -79,8 +79,7 @@ router.post("/upload", upload.single("file"), async (req, res) => {
 
 // 返回接口json数据
 router.get("/api/info", (req, res) => {
-  const { pageNo = 1, pageSize = 10, method, path, originfile } = req.query;
-  // console.log(pageNo,pageSize,method,path)
+  const { pageNo = 1, pageSize = 10, method, path, originfile, active="" } = req.query;
   let params = [];
   // 构建查询条件
   const conditions = [];
@@ -96,12 +95,16 @@ router.get("/api/info", (req, res) => {
     conditions.push("originfile LIKE ? COLLATE NOCASE");
     params.push(`%${originfile}%`);
   }
+  if (active !== "") {
+    conditions.push("active = ?");
+    params.push(active);
+  }
   let whereSql = "";
   if (conditions.length > 0) {
     whereSql = "WHERE " + conditions.join(" AND ");
   }
   const offsetSize = (pageNo - 1) * pageSize;
-  const sql = `SELECT id, method, path, fullpath, originfile, createdate, queryString, postData FROM network_response 
+  const sql = `SELECT id, method, path, fullpath, originfile, createdate, queryString, postData, active FROM network_response 
     ${whereSql} 
     order by createdate desc, id desc 
     LIMIT ${pageSize} OFFSET ${offsetSize};`;
@@ -113,6 +116,7 @@ router.get("/api/info", (req, res) => {
     const _methodOptions = [];
     rows = rows.map((row, index) => {
       row.no = offsetSize + index + 1;
+      row.active = row.active === "1" ? "激活" : "禁用";
       row.localFullPath = `http://localhost:${PORT}${row.path}${row.queryString}`;
       _methodOptions.push(row.method);
       return row;
@@ -156,6 +160,40 @@ router.get("/api/detail/:id", async (req, res) => {
       }
     }
   );
+});
+
+// 删除已有接口
+router.delete("/api/delete/:id", (req, res) => {
+  const id = req.params.id;
+  db.run("DELETE FROM network_response WHERE id = ?", [id], function (err) {
+    if (err) {
+      console.error("删除接口失败:", err);
+      return res.status(500).json({ error: err || "删除接口失败" });
+    } else {
+      console.log(`删除接口成功 ${this.changes} row(s)`);
+      res.status(200).json({
+        message: `删除接口成功: ${this.changes} 个`,
+        success: true,
+      });
+    }
+  });
+});
+
+// 更新已有接口
+router.put("/api/update", async (req, res) => {
+  const { id, active} = req.body;
+  const dbres = await db.updateDataById({
+    tableName: "network_response",
+    sqlData: [{
+      id,
+      active: active === true ? "1" : "0",
+    }],
+  });
+  // console.log("dbres", dbres);
+  res.status(200).json({
+    ...JSON.parse(dbres),
+    message: "更新接口成功",
+  });
 });
 
 router.get("/myApi/detail/:id", async (req, res) => {
@@ -332,6 +370,7 @@ async function processHarEntries({ entries, key, filename }) {
       key: key,
       queryString: url.search || "", // sqlite没有数组类型，所以用字符串代替
       postData: entry.request?.postData?.text || "",
+      active: "1", // 默认激活状态
     });
   });
   const dbres = await db.insertData({
@@ -397,7 +436,7 @@ router.post("/myApi/add", async (req, res) => {
 
 // 获取自定义接口列表
 router.get("/myApi/list", async (req, res) => {
-  const { pageNo = 1, pageSize = 10, method, path, active } = req.query;
+  const { pageNo = 1, pageSize = 10, method, path, active="" } = req.query;
   let params = [];
   // 构建查询条件
   const conditions = [];
@@ -409,10 +448,10 @@ router.get("/myApi/list", async (req, res) => {
     conditions.push("path LIKE ? COLLATE NOCASE");
     params.push(`%${path}%`);
   }
-  // if (active !== undefined) {
-  //   conditions.push("active = ?");
-  //   params.push(active === "true");
-  // }
+  if (active !== "") {
+    conditions.push("active = ?");
+    params.push(active);
+  }
   let whereSql = "";
   if (conditions.length > 0) {
     whereSql = "WHERE " + conditions.join(" AND ");
@@ -520,7 +559,7 @@ router.put("/myApi/update", async (req, res) => {
     sqlData: [dbdata],
     condition: { id },
   });
-  console.log("dbres", dbres);
+  // console.log("dbres", dbres);
   res.status(200).json({
     message: "更新接口成功",
     data: dbdata,
