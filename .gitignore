@@ -3,5 +3,6 @@ response/
 dictionnary/
 har/
 build/
+dist/
 uploadFile/
 SQLite/data/
