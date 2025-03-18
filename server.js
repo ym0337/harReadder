@@ -18,7 +18,9 @@ const harRoutes = require("./routes/har.js");
 const app = express();
 
 // 解析 JSON 请求体
-app.use(express.json());
+// app.use(express.json());
+app.use(express.json({ limit: '10mb' })); // 限制请求体大小为 10mb, 解决 request entity too large
+app.use(express.urlencoded({ limit: '10mb', extended: true }));
 // 使用 CORS 中间件
 app.use(cors());
 // 路由
