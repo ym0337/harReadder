@@ -1,19 +1,26 @@
 const express = require("express");
 const fs = require("fs");
 const path = require("path");
-const { exec } = require("child_process");
+// const { exec } = require("child_process");
 const cors = require("cors"); // 引入 cors
-const { isValidJson } = require("./utils/utils.js");
-
-const { DICTIONNARY_PATH, RESPONSE_PATH } = require("./config/const.js");
+const {
+  isValidJson,
+  isEqualAsObject,
+  queryStringToObject,
+  isObject,
+} = require("./utils/utils.js");
+const db = require("./SQLite/db.js");
+// 端口
+const { PORT } = require("./config/const.js");
 
 const harRoutes = require("./routes/har.js");
 
 const app = express();
-const PORT = 3011;
 
 // 解析 JSON 请求体
-app.use(express.json());
+// app.use(express.json());
+app.use(express.json({ limit: '10mb' })); // 限制请求体大小为 10mb, 解决 request entity too large
+app.use(express.urlencoded({ limit: '10mb', extended: true }));
 // 使用 CORS 中间件
 app.use(cors());
 // 路由
@@ -28,82 +35,167 @@ app.use((err, req, res, next) => {
 // 指定静态文件目录为 build
 app.use(express.static(path.join(__dirname, "build_web")));
 
-// 必须放到最后一个路由，否则会影响到正常的路由
+// 必须放到最后一个路由，否则会影响到正常的路由(结果发现并不会，但是注释还是放着)
 app.get("/Main", (req, res) => {
   res.sendFile(path.join(__dirname, "build_web", "index.html"));
 });
 
-let config;
+// 穷举所有请求路径;
+app.get("*", (req, res) => {
+  if (!req.path) {
+    res.status(500).json({ message: `没有 ${req.path} 路径的接口` });
+  }
+  // console.log(req.query);
+  returnJson({ req, res, method: "GET" });
+});
 
-try {
-  const configFile = fs.readFileSync(
-    path.join(DICTIONNARY_PATH, "接口关系.json"),
-    "utf-8"
-  );
-  // 解析 JSON 配置文件
-  config = isValidJson(configFile) ? JSON.parse(configFile) : { data: [] };
-} catch (error) {
-  console.error("读取配置文件失败:", error);
-  process.exit(1); // 读取配置失败，退出程序
+app.post("*", (req, res) => {
+  if (!req.path) {
+    res.status(500).json({ message: `没有 ${req.path} 路径的接口` });
+  }
+  // console.log(req.body);
+  returnJson({ req, res, method: "POST" });
+});
+
+app.put("*", (req, res) => {
+  if (!req.path) {
+    res.status(500).json({ message: `没有 ${req.path} 路径的接口` });
+  }
+  returnJson({ req, res, method: "PUT" });
+});
+
+app.delete("*", (req, res) => {
+  if (!req.path) {
+    res.status(500).json({ message: `没有 ${req.path} 路径的接口` });
+  }
+  returnJson({ req, res, method: "DELETE" });
+});
+
+app.patch("*", (req, res) => {
+  if (!req.path) {
+    res.status(500).json({ message: `没有 ${req.path} 路径的接口` });
+  }
+  returnJson({ req, res, method: "PATCH" });
+});
+
+app.head("*", (req, res) => {
+  if (!req.path) {
+    res.status(500).json({ message: `没有 ${req.path} 路径的接口` });
+  }
+  returnJson({ req, res, method: "HEAD" });
+});
+
+app.options("*", (req, res) => {
+  if (!req.path) {
+    res.status(500).json({ message: `没有 ${req.path} 路径的接口` });
+  }
+  returnJson({ req, res, method: "OPTIONS" });
+});
+
+async function returnJson({ req, res, method }) {
+  // server_config表中获取配置，判断是否需要匹配传参
+  const serverConfig = await new Promise((resolve, reject) => {
+    db.get(
+      "SELECT * FROM server_config order by id desc LIMIT 1",
+      (err, row) => {
+        if (err) {
+          console.error(err);
+          // 默认不匹配传参
+          reject({ allowParameterTransmission: false });
+        } else {
+          // console.log(row);
+          resolve(JSON.parse(row.config) || row);
+        }
+      }
+    );
+  });
+  console.log(serverConfig);
+  const reqPath = req.path;
+  console.log(`${method} 请求路径: ${reqPath}`);
+  // 只有 GET 和 POST 请求并且传参为对象时才会匹配查询条件
+  const canDiff = method === "GET" || method === "POST";
+  const params2 =
+    method === "GET" ? req.query : method === "POST" ? req.body : null;
+  if (
+    !serverConfig.allowParameterTransmission ||
+    !canDiff ||
+    !isObject(params2)
+  ) {
+    console.log(`没有查询条件，返回最新数据`);
+    db.all(
+      `SELECT content FROM my_api_resquest WHERE path = ? AND active = 1 
+       UNION ALL 
+       SELECT content FROM network_response WHERE path = ? AND active = 1 ;`,
+      [reqPath, reqPath],
+      (err, rows) => {
+        if (err) {
+          res.status(500).json({ error: err || "获取数据失败" });
+        }
+        try {
+          const isJson = isValidJson(rows[0].content);
+          if (!isJson) {
+            res.status(200).send(rows[0].content);
+          } else {
+            res.status(200).json(JSON.parse(rows[0].content));
+          }
+        } catch (error) {
+          res.status(500).json({
+            error: error || "获取数据失败",
+            message: "确认是否开启了传参匹配, 或者禁用了接口状态",
+          });
+        }
+      }
+    );
+  } else {
+    console.log("需要配置传参");
+    db.all(
+      `SELECT  method, content, queryString, postData FROM my_api_resquest WHERE path = ? AND active = 1 
+       UNION ALL 
+       SELECT  method, content, queryString, postData FROM network_response WHERE path = ? AND active = 1 ;`,
+      [reqPath, reqPath],
+      (err, rows) => {
+        if (err) {
+          res.status(500).json({ error: err || "获取数据失败" });
+        }
+        const result = rows.find((row) => {
+          const params1 =
+            method === "GET"
+              ? queryStringToObject(row.queryString)
+              : JSON.parse(row.postData);
+
+          if (params1.t && params2.t) {
+            // 认为是时间戳,需要忽略掉
+            delete params1.t;
+            delete params2.t;
+          }
+          return isEqualAsObject(params1, params2);
+        });
+        try {
+          const isJson = isValidJson(result.content);
+          if (!isJson) {
+            res.status(200).send(result.content);
+          } else {
+            res.status(200).json(JSON.parse(result.content));
+          }
+        } catch (error) {
+          res.status(500).json({
+            error: error || "获取数据失败",
+            message: "确认是否开启了传参匹配, 或者禁用了接口状态",
+          });
+        }
+      }
+    );
+  }
 }
 
-// 读取文件并返回 JSON
-const readFileAndRespond = (filePath, res) => {
-  const ext = path.extname(filePath);
-  fs.readFile(filePath, "utf-8", (err, data) => {
-    if (err) {
-      return res.status(500).json({ error: "读取文件失败" });
-    }
-    try {
-      if (ext === ".json") {
-        res.json(JSON.parse(data)); // 返回 JSON 文件的内容
-      } else if (ext === ".txt") {
-        res.type("text/plain").send(data); // 返回纯文本文件的内容
-      } else {
-        res.status(400).json({ error: "不支持的文件类型" });
-      }
-    } catch (error) {
-      res.status(500).json({ error: "解析 JSON 失败" });
-    }
-  });
-};
-
-// 根据配置生成接口
-config.data.forEach((apiconfig) => {
-  const { method, path, apiName } = apiconfig;
-  const lowerMethod = method.toLowerCase();
-  try {
-    if (!lowerMethod) {
-      console.log('\x1b[31m%s\x1b[0m', `method 有问题: ${lowerMethod}`);
-      return;
-    }
-    app[lowerMethod](path, (req, res) => {
-      readFileAndRespond(`${RESPONSE_PATH}/${apiName}`, res);
-    });
-  } catch (error) {
-    console.log('\x1b[31m%s\x1b[0m', `根据配置生成接口失败:${error}`);
-  }
-
-  // console.log(`注册接口: ${method} ${path} => ${apiName}`);
-  // if (lowerMethod === "get") {
-  //   app.get(path, (req, res) => {
-  //     readFileAndRespond(`${RESPONSE_PATH}/${apiName}`, res);
-  //   });
-  // } else if (lowerMethod === "post") {
-  //   app.post(path, (req, res) => {
-  //     readFileAndRespond(`${RESPONSE_PATH}/${apiName}`, res);
-  //   });
-  // }
-});
-
-app.get("*", (req, res) => {
-  console.log(`请求路径: ${req.path},没有找到，可能需要重启server.js`);
-  res.status(404).send(
-    `请求路径: ${req.path} 没有找到; \n 
-      1.可能没有执行对应的har文件; \n
-      2.可能需要重启server.js 或执行 npm run server`
-  );
-});
+// app.get("*", (req, res) => {
+//   console.log(`请求路径: ${req.path},没有找到，可能需要重启server.js`);
+//   res.status(404).send(
+//     `请求路径: ${req.path} 没有找到; \n
+//       1.可能没有执行对应的har文件; \n
+//       2.可能需要重启server.js 或执行 npm run server`
+//   );
+// });
 
 // 启动服务器
 app.listen(PORT, () => {
@@ -116,7 +208,6 @@ app.listen(PORT, () => {
   // exec(`${start} http://localhost:${PORT}`); // 打开浏览器
 });
 
-
 /**
 console.log('\x1b[31m%s\x1b[0m', '这是红色文字'); // 红色文字
 console.log('\x1b[32m%s\x1b[0m', '这是绿色文字'); // 绿色文字
@@ -125,4 +216,4 @@ console.log('\x1b[34m%s\x1b[0m', '这是蓝色文字'); // 蓝色文字
 console.log('\x1b[35m%s\x1b[0m', '这是紫色文字'); // 紫色文字
 console.log('\x1b[36m%s\x1b[0m', '这是青色文字'); // 青色文字
 console.log('\x1b[37m%s\x1b[0m', '这是白色文字'); // 白色文字
-*/ 
+*/
